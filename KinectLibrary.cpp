@@ -2,6 +2,7 @@
 #include "KinectLibraryException.h"
 #include "Windows.h"
 #include <intrin.h>
+#include <iostream>
 
 KinectLibrary::KinectLibrary(uint8_t sensors) {
 
@@ -37,12 +38,26 @@ KinectLibrary::KinectLibrary(uint8_t sensors) {
 		if (sensors & BODY_SENSOR) {
 			frameSourceTypes |= FrameSourceTypes::FrameSourceTypes_Body;
 		}
+		if (sensors & BODY_INDEX_SENSOR) {
+			frameSourceTypes |= FrameSourceTypes::FrameSourceTypes_BodyIndex;
+		}
 
 		result = sensor->OpenMultiSourceFrameReader((DWORD)frameSourceTypes, &msfReader);
 
 		if (FAILED(result)) {
 			throw KinectLibraryException("Failed to open the multi-source frame reader");
 		}
+		
+		while (!msf) {
+			result = msfReader->AcquireLatestFrame(&msf);
+		}
+
+		if (FAILED(result)) {
+			throw KinectLibraryException("Failed to get multi-source frame");
+		}
+		
+		initMSFSizes();
+		msf->Release();
 	}
 	else {
 		switch (sensors) {
@@ -66,6 +81,11 @@ KinectLibrary::KinectLibrary(uint8_t sensors) {
 			initBody();
 
 			break;
+		case BODY_INDEX_SENSOR:
+			
+			initBodyIndex();
+
+			break;
 		default:
 			break;
 		}
@@ -73,222 +93,248 @@ KinectLibrary::KinectLibrary(uint8_t sensors) {
 		if (frameDesc) {
 			frameDesc->get_Height(&height);
 			frameDesc->get_Width(&width);
+			frameDesc->Release();
 		}
 
 	}
 
 }
 
-void KinectLibrary::getColorImage(cv::Mat output) {
+bool KinectLibrary::getColorImage(cv::Mat& output) {
 
 	HRESULT result;
 
 	if (!(_sensors & COLOR_SENSOR)) {
+		return false;
 		throw KinectLibraryException("getColorImage called incorrectly");
 	}
 	
 	if (!msfReader && !colorReader) {
+		return false;
 		throw KinectLibraryException("getColorImage called incorrectly, call constructor first");
 	}
 
 	if (msfReader) {
-		result = msfReader->AcquireLatestFrame(&msf);
 		
-		UINT8* colorBuffer = new UINT8[colorHeight * colorWidth * 4];
+		result = msfReader->AcquireLatestFrame(&msf);
+
+		delete[] colorBuffer;
+		colorBuffer = new UINT8[colorHeight * colorWidth * 4];
 		
 		if (FAILED(result)) {
+			return false;
 			throw KinectLibraryException("Unable to get multi-source frame");
 		}
 
 		result = msf->get_ColorFrameReference(&colorRef);
 
 		if (FAILED(result)) {
+			return false;
 			throw KinectLibraryException("Unable to get color frame reference");
 		}
 
 		result = colorRef->AcquireFrame(&colorFrame);
 
 		if (FAILED(result)) {
-			throw KinectLibraryException("Unable to get color frame");
+			//throw KinectLibraryException("Unable to get color frame");
+			return false;
 		}
 
-		result = colorFrame->CopyConvertedFrameDataToArray(colorHeight * colorWidth * 4, colorBuffer,ColorImageFormat::ColorImageFormat_Bgra);
-		cv::Mat image = cv::Mat::zeros(colorHeight, colorWidth, CV_8UC4);
-		image = cv::Mat(colorHeight, colorWidth, CV_8UC4, colorBuffer);
+		result = colorFrame->CopyConvertedFrameDataToArray(colorHeight * colorWidth * 4, colorBuffer ,ColorImageFormat::ColorImageFormat_Bgra);
+		
+		output = cv::Mat(colorHeight, colorWidth, CV_8UC4, colorBuffer);
 
-		output = image;
-		delete[] colorBuffer;
 		msf->Release();
 		colorRef->Release();
 		colorFrame->Release();
+		return true;
 
 	}
 	else if (colorReader) {
 
-		UINT8* colorBuffer = new UINT8[height * width * 4];
+		delete[] colorBuffer;
+		colorBuffer = new UINT8[height * width * 4];
 
 		result = colorReader->AcquireLatestFrame(&colorFrame);
 
 		if (FAILED(result)) {
+			return false;
 			throw KinectLibraryException("Unable to get color frame");
 		}
 
 		result = colorFrame->CopyConvertedFrameDataToArray(height * width * 4, colorBuffer, ColorImageFormat::ColorImageFormat_Bgra);
 
 		
-		cv::Mat image = cv::Mat(height, width, CV_8UC4, colorBuffer);
-		output = image;
+		output = cv::Mat(height, width, CV_8UC4, colorBuffer);
 
-		delete[] colorBuffer;
 		colorRef->Release();
 		colorFrame->Release();
+		return true;
 	}
+
+	return false;
 }
 
-void KinectLibrary::getDepthImage(cv::Mat output) {
+bool KinectLibrary::getDepthImage(cv::Mat& output) {
 	
 	HRESULT result;
 
 	if (!(_sensors & DEPTH_SENSOR)) {
+		return false;
 		throw KinectLibraryException("getDepthImage called incorrectly");
 	}
 
 	if (!msfReader && !depthReader) {
+		return false;
 		throw KinectLibraryException("getDepthImage called incorrectly. Call constructor first");
 	}
 
 	if (msfReader) {
 
-		UINT16* depthBuffer = new UINT16[depthHeight * depthWidth];
+		delete[] depthBuffer;
+		depthBuffer = new UINT16[depthHeight * depthWidth];
 
 		result = msfReader->AcquireLatestFrame(&msf);
 
 		if (FAILED(result)) {
+			return false;
 			throw KinectLibraryException("Unable to get multi-source frame");
 		}
 
 		result = msf->get_DepthFrameReference(&depthRef);
 
 		if (FAILED(result)) {
+			return false;
 			throw KinectLibraryException("Unable to get depth frame reference");
 		}
 
 		result = depthRef->AcquireFrame(&depthFrame);
 
 		if (FAILED(result)) {
+			return false;
 			throw KinectLibraryException("Unable to get depth frame");
 		}
 
 		result = depthFrame->CopyFrameDataToArray(depthHeight * depthWidth, depthBuffer);
 		
-		cv::Mat image = cv::Mat(depthHeight, depthWidth, CV_16UC1, depthBuffer);
-		output = image;
+		output = cv::Mat(depthHeight, depthWidth, CV_16UC1, depthBuffer);
 
-		delete[] depthBuffer;
 
 		msf->Release();
 		depthRef->Release();
 		depthFrame->Release();
+		return true;
 		
 	}
 	else if (depthReader) {
-		UINT16* depthBuffer = new UINT16[height * width];
+
+		delete[] depthBuffer;
+		depthBuffer = new UINT16[height * width];
 
 		result = depthReader->AcquireLatestFrame(&depthFrame);
 
 		if (FAILED(result)) {
+			return false;
 			throw KinectLibraryException("Unable to get depth frame");
 		}
 		
 		result = depthFrame->CopyFrameDataToArray(height * width, depthBuffer);
 
-		cv::Mat image = cv::Mat(height, width, CV_16UC1, depthBuffer);
-		output = image;
-
-		delete[] depthBuffer;
+		output = cv::Mat(height, width, CV_16UC1, depthBuffer);
 		
 		msf->Release();
 		depthRef->Release();
 		depthFrame->Release();
+		return true;
 		
 	}
+
+	return false;
 }
 
-void KinectLibrary::getInfraredImage(cv::Mat output) {
+bool KinectLibrary::getInfraredImage(cv::Mat& output) {
 	HRESULT result;
 
 	if (!(_sensors & INFRARED_SENSOR)) {
+		return false;
 		throw KinectLibraryException("getInfraredImage called incorrectly");
 	}
 
 	if (!msfReader && !infraredReader) {
+		return false;
 		throw KinectLibraryException("getInfraredImage called incorrectly, call constructor first");
 	}
 
 	if (msfReader) {
 		
-		UINT16* infraredBuffer = new UINT16[infraredHeight * infraredWidth];
+		delete[] infraredBuffer;
+		infraredBuffer = new UINT16[infraredHeight * infraredWidth];
 
 		result = msfReader->AcquireLatestFrame(&msf);
 
 		if (FAILED(result)) {
+			return false;
 			throw KinectLibraryException("Unable to get multi-source frame");
 		}
 
 		result = msf->get_InfraredFrameReference(&infraredRef);
 
 		if (FAILED(result)) {
+			return false;
 			throw KinectLibraryException("Unable to get infrared frame reference");
 		}
 
 		result = infraredRef->AcquireFrame(&infraredFrame);
 
 		if (FAILED(result)) {
+			return false;
 			throw KinectLibraryException("Unable to get infrared frame");
 		}
 
 		result = infraredFrame->CopyFrameDataToArray(infraredHeight * infraredWidth, infraredBuffer);
 
-		cv::Mat image = cv::Mat(infraredHeight, infraredWidth, CV_16UC1, infraredBuffer);
-		output = image;
-
-		delete[] infraredBuffer;
+		output = cv::Mat(infraredHeight, infraredWidth, CV_16UC1, infraredBuffer);
 
 		msf->Release();
 		infraredRef->Release();
 		infraredFrame->Release();
+		return true;
 	}
 	else if (infraredReader) {
 
-		UINT16* infraredBuffer = new UINT16[height * width];
+		delete[] infraredBuffer;
+		infraredBuffer = new UINT16[height * width];
 
 		result = infraredReader->AcquireLatestFrame(&infraredFrame);
 
 		if (FAILED(result)) {
+			return false;
 			throw KinectLibraryException("Unable to get infrared frame");
 		}
 
 		result = infraredFrame->CopyFrameDataToArray(height * width, infraredBuffer);
 
-		cv::Mat image = cv::Mat(height, width, CV_16UC1, infraredBuffer);
-		output = image;
-		
-		delete[] infraredBuffer;
+		output = cv::Mat(height, width, CV_16UC1, infraredBuffer);
 
 		infraredReader->Release();
 		infraredFrame->Release();
+		return true;
 	}
+
+	return false;
 }
 
-void KinectLibrary::getBody(IBody** body) {
+bool KinectLibrary::getBody(IBody** body) {
 
 	HRESULT result;
 
 	if (!(_sensors & BODY_SENSOR)) {
+		return false;
 		throw KinectLibraryException("getBody called incorrectly");
 	}
 
 	if (!msfReader && !bodyReader) {
+		return false;
 		throw KinectLibraryException("getBody called incorrectly, call constructor first");
 	}
 
@@ -297,47 +343,131 @@ void KinectLibrary::getBody(IBody** body) {
 		result = msfReader->AcquireLatestFrame(&msf);
 
 		if (FAILED(result)) {
+			return false;
 			throw KinectLibraryException("Unable to get multi-source frame");
 		}
 
 		result = msf->get_BodyFrameReference(&bodyRef);
 
 		if (FAILED(result)) {
+			return false;
 			throw KinectLibraryException("Unable to get body frame reference");
 		}
 
 		result = bodyRef->AcquireFrame(&bodyFrame);
 
 		if (FAILED(result)) {
+			return false;
 			throw KinectLibraryException("Unable to get body frame");
 		}
 
 		result = bodyFrame->GetAndRefreshBodyData(BODY_COUNT, body);
 
 		if (FAILED(result)) {
+			return false;
 			throw KinectLibraryException("Unable to get body data");
 		}
 
 		msf->Release();
 		bodyRef->Release();
 		bodyFrame->Release();
+
+		return true;
 	}
 	else if (bodyReader) {
 		
 		result = bodyReader->AcquireLatestFrame(&bodyFrame);
 
 		if (FAILED(result)) {
+			return false;
 			throw KinectLibraryException("Unable to get body frame");
 		}
 
 		result = bodyFrame->GetAndRefreshBodyData(BODY_COUNT, body);
 
 		if (FAILED(result)) {
+			return false;
 			throw KinectLibraryException("Unable to get body data");
 		}
 
 		bodyFrame->Release();
+		return true;
 	}
+
+	return false;
+}
+
+bool KinectLibrary::getBodyIndex(cv::Mat& output) {
+	HRESULT result;
+
+	if (!(_sensors & BODY_INDEX_SENSOR)) {
+		return false;
+		throw KinectLibraryException("getBodyIndex called incorrectly");
+	}
+
+	if (!msfReader && !bodyIndexReader) {
+		return false;
+		throw KinectLibraryException("getBodyIndex called incorrectly, call constructor first");
+	}
+
+	if (msfReader) {
+
+		delete[] bodyIndexBuffer;
+		bodyIndexBuffer = new UINT8[bodyIndexHeight * bodyIndexWidth];
+
+		result = msfReader->AcquireLatestFrame(&msf);
+
+		if (FAILED(result)) {
+			return false;
+			throw KinectLibraryException("Unable to get multi-source frame");
+		}
+
+		result = msf->get_BodyIndexFrameReference(&bodyIndexRef);
+
+		if (FAILED(result)) {
+			return false;
+			throw KinectLibraryException("Unable to get body index frame reference");
+		}
+
+		result = bodyIndexRef->AcquireFrame(&bodyIndexFrame);
+
+		if (FAILED(result)) {
+			return false;
+			throw KinectLibraryException("Unable to get body index frame");
+		}
+		
+		result = bodyIndexFrame->CopyFrameDataToArray(bodyIndexHeight * bodyIndexWidth, bodyIndexBuffer);
+
+		output = cv::Mat(bodyIndexHeight, bodyIndexWidth, CV_8UC1, bodyIndexBuffer);
+
+		msf->Release();
+		bodyIndexRef->Release();
+		bodyIndexFrame->Release();
+		return true;
+	}
+	else if (bodyIndexReader) {
+
+		delete[] bodyIndexBuffer;
+		bodyIndexBuffer = new UINT8[bodyIndexHeight * bodyIndexWidth];
+
+		result = bodyIndexReader->AcquireLatestFrame(&bodyIndexFrame);
+
+		if (FAILED(result)) {
+			return false;
+			throw KinectLibraryException("Unable to get body index frame");
+		}
+
+		result = bodyIndexFrame->CopyFrameDataToArray(bodyIndexHeight * bodyIndexWidth, bodyIndexBuffer);
+
+		output = cv::Mat(bodyIndexHeight, bodyIndexWidth, CV_8UC1, bodyIndexBuffer);
+
+		bodyIndexFrame->Release();
+		return true;
+
+	}
+
+	return false;
+
 }
 
 void KinectLibrary::initColor() {
@@ -415,8 +545,138 @@ void KinectLibrary::initBody() {
 		throw KinectLibraryException("Unable to get body reader");
 	}
 
-	bodyReader->AcquireLatestFrame(&bodyFrame);
+}
 
+void KinectLibrary::initBodyIndex() {
+	HRESULT result = sensor->get_BodyIndexFrameSource(&bodyIndexSource);
+
+	if (FAILED(result)) {
+		throw KinectLibraryException("Unable to get body index source");
+	}
+
+	result = bodyIndexSource->OpenReader(&bodyIndexReader);
+
+	if (FAILED(result)) {
+		throw KinectLibraryException("Unable to get body index reader");
+	}
+
+	result = bodyIndexSource->get_FrameDescription(&frameDesc);
+
+	if (FAILED(result)) {
+		throw KinectLibraryException("Unable to get frame description");
+	}
+}
+
+void KinectLibrary::initMSFSizes() {
+	HRESULT result;
+
+	if (_sensors & COLOR_SENSOR) {
+		result = msf->get_ColorFrameReference(&colorRef);
+
+		if (FAILED(result)) {
+			throw KinectLibraryException("Failed to get color frame reference");
+		}
+
+		result = colorRef->AcquireFrame(&colorFrame);
+
+		if (FAILED(result)) {
+			throw KinectLibraryException("Failed to get color frame");
+		}
+
+		result = colorFrame->get_FrameDescription(&frameDesc);
+
+		if (FAILED(result)) {
+			throw KinectLibraryException("Failed to get color frame description");
+		}
+
+		frameDesc->get_Height(&colorHeight);
+		frameDesc->get_Width(&colorWidth);
+
+		colorRef->Release();
+		colorFrame->Release();
+		frameDesc->Release();
+	}
+
+	if (_sensors & DEPTH_SENSOR) {
+		result = msf->get_DepthFrameReference(&depthRef);
+
+		if (FAILED(result)) {
+			throw KinectLibraryException("Failed to get depth frame reference");
+		}
+
+		result = depthRef->AcquireFrame(&depthFrame);
+
+		if (FAILED(result)) {
+			throw KinectLibraryException("Failed to get depth frame");
+		}
+
+		result = depthFrame->get_FrameDescription(&frameDesc);
+
+		if (FAILED(result)) {
+			throw KinectLibraryException("Failed to get depth frame description");
+		}
+
+		frameDesc->get_Height(&depthHeight);
+		frameDesc->get_Width(&depthWidth);
+
+		depthRef->Release();
+		depthFrame->Release();
+		frameDesc->Release();
+	}
+
+	if (_sensors & INFRARED_SENSOR) {
+		result = msf->get_InfraredFrameReference(&infraredRef);
+
+		if (FAILED(result)) {
+			throw KinectLibraryException("Failed to get infrared frame reference");
+		}
+
+		result = infraredRef->AcquireFrame(&infraredFrame);
+
+		if (FAILED(result)) {
+			throw KinectLibraryException("Failed to get infrared frame");
+		}
+
+		result = infraredFrame->get_FrameDescription(&frameDesc);
+
+		if (FAILED(result)) {
+			throw KinectLibraryException("Failed to get infrared frame description");
+		}
+
+		frameDesc->get_Height(&infraredHeight);
+		frameDesc->get_Width(&infraredWidth);
+
+		infraredRef->Release();
+		infraredFrame->Release();
+		frameDesc->Release();
+	}
+
+	if (_sensors & BODY_INDEX_SENSOR) {
+		result = msf->get_BodyIndexFrameReference(&bodyIndexRef);
+
+		if (FAILED(result)) {
+			throw KinectLibraryException("Failed to get body index frame reference");
+		}
+
+		result = bodyIndexRef->AcquireFrame(&bodyIndexFrame);
+
+		if (FAILED(result)) {
+			throw KinectLibraryException("Failed to get body index frame");
+		}
+
+		result = bodyIndexFrame->get_FrameDescription(&frameDesc);
+
+		if (FAILED(result)) {
+			throw KinectLibraryException("Failed to get body index frame description");
+		}
+
+		frameDesc->get_Height(&bodyIndexHeight);
+		frameDesc->get_Width(&bodyIndexWidth);
+
+		bodyIndexRef->Release();
+		bodyIndexFrame->Release();
+		frameDesc->Release();
+	}
 }
 
 KinectLibrary::~KinectLibrary() {

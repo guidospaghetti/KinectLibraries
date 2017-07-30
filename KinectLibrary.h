@@ -3,23 +3,31 @@
 #include <opencv2\imgproc\imgproc.hpp>
 
 
-#define	COLOR_SENSOR		0x01
-#define DEPTH_SENSOR		0x01 << 1
-#define INFRARED_SENSOR		0x01 << 2
-#define BODY_SENSOR			0x01 << 3
+#define	COLOR_SENSOR		(0x01)
+#define DEPTH_SENSOR		(0x01 << 1)
+#define INFRARED_SENSOR		(0x01 << 2)
+#define BODY_SENSOR			(0x01 << 3)
+#define BODY_INDEX_SENSOR	(0x01 << 4)
 
 class KinectLibrary {
 
 public:
+	/**
+	 * @brief KinectLibrary constructor. Performs the backend startup for 
+	 * the Kinect API. The sensors available are color, depth, infrared, and
+	 * body tracking. In order to use 
+	 */
 	KinectLibrary(uint8_t sensors);
 
-	void getColorImage(cv::Mat output);
+	bool getColorImage(cv::Mat& output);
 
-	void getDepthImage(cv::Mat output);
+	bool getDepthImage(cv::Mat& output);
 
-	void getInfraredImage(cv::Mat output);
+	bool getInfraredImage(cv::Mat& output);
 
-	void getBody(IBody** body);
+	bool getBody(IBody** body);
+
+	bool getBodyIndex(cv::Mat& output);
 
 	~KinectLibrary();
 
@@ -27,45 +35,53 @@ private:
 
 	uint8_t _sensors;
 
-	IKinectSensor* sensor;
+	IKinectSensor* sensor = NULL;
 
-	IMultiSourceFrameReader* msfReader;
+	IMultiSourceFrameReader* msfReader = NULL;
 
-	IMultiSourceFrame* msf;
+	IMultiSourceFrame* msf = NULL;
 
-	IColorFrameSource* colorSource;
+	IColorFrameSource* colorSource = NULL;
 
-	IColorFrameReader* colorReader;
+	IColorFrameReader* colorReader = NULL;
 
-	IColorFrameReference* colorRef;
+	IColorFrameReference* colorRef = NULL;
 
-	IColorFrame* colorFrame;
+	IColorFrame* colorFrame = NULL;
 
-	IDepthFrameSource* depthSource;
+	IDepthFrameSource* depthSource = NULL;
 	
-	IDepthFrameReader* depthReader;
+	IDepthFrameReader* depthReader = NULL;
 
-	IDepthFrameReference* depthRef;
+	IDepthFrameReference* depthRef = NULL;
 
-	IDepthFrame* depthFrame;
+	IDepthFrame* depthFrame = NULL;
 
-	IInfraredFrameSource* infraredSource;
+	IInfraredFrameSource* infraredSource = NULL;
 
-	IInfraredFrameReader* infraredReader;
+	IInfraredFrameReader* infraredReader = NULL;
 
-	IInfraredFrameReference* infraredRef;
+	IInfraredFrameReference* infraredRef = NULL;
 
-	IInfraredFrame* infraredFrame;
+	IInfraredFrame* infraredFrame = NULL;
 
-	IBodyFrameSource* bodySource;
+	IBodyFrameSource* bodySource = NULL;
 	
-	IBodyFrameReader* bodyReader;
+	IBodyFrameReader* bodyReader = NULL;
 
-	IBodyFrameReference* bodyRef;
+	IBodyFrameReference* bodyRef = NULL;
 
-	IBodyFrame* bodyFrame;
+	IBodyFrame* bodyFrame = NULL;
 
-	IFrameDescription* frameDesc;
+	IBodyIndexFrameSource* bodyIndexSource = NULL;
+
+	IBodyIndexFrameReader* bodyIndexReader = NULL;
+
+	IBodyIndexFrameReference* bodyIndexRef = NULL;
+
+	IBodyIndexFrame* bodyIndexFrame = NULL;
+
+	IFrameDescription* frameDesc = NULL;
 
 	int colorHeight;
 
@@ -79,9 +95,21 @@ private:
 	
 	int infraredWidth;
 
+	int bodyIndexHeight;
+
+	int bodyIndexWidth;
+
 	int height;
 
 	int width;
+
+	UINT8* colorBuffer;
+
+	UINT16* depthBuffer;
+
+	UINT16* infraredBuffer;
+
+	UINT8* bodyIndexBuffer;
 
 	void initColor();
 
@@ -90,5 +118,9 @@ private:
 	void initInfrared();
 
 	void initBody();
+
+	void initBodyIndex();
+
+	void initMSFSizes();
 };
 
