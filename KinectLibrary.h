@@ -19,7 +19,7 @@ public:
 
 	void getInfraredImage(cv::Mat output);
 
-	IBody* getBodies();
+	void getBody(IBody** body);
 
 	~KinectLibrary();
 
