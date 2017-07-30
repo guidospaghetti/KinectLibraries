@@ -1,6 +1,7 @@
 #include "Kinect.h"
 #include <stdint.h>
-#include <opencv2\core\core.hpp>
+#include <opencv2\imgproc\imgproc.hpp>
+
 
 #define	COLOR_SENSOR		0x01
 #define DEPTH_SENSOR		0x01 << 1
@@ -11,6 +12,14 @@ class KinectLibrary {
 
 public:
 	KinectLibrary(uint8_t sensors);
+
+	void getColorImage(cv::Mat output);
+
+	void getDepthImage(cv::Mat output);
+
+	void getInfraredImage(cv::Mat output);
+
+	IBody* getBodies();
 
 	~KinectLibrary();
 
