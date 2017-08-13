@@ -1,6 +1,8 @@
 #include "KinectLibrary.h"
 #include <opencv2\highgui.hpp>
 #include <opencv2\features2d.hpp>
+#include <iostream>
+
 int main() {
 	
 	KinectLibrary kl(COLOR_SENSOR | DEPTH_SENSOR);
@@ -11,34 +13,21 @@ int main() {
 	cv::Rect mappedRect = cv::Rect(0, 0, 512, 424);
 
 	while (1) {
+		int64 ticks = cv::getTickCount();
 		if (kl.update()) {
 			if (kl.getDepthImage(depth) && kl.getColorImage(color)) {
 				cv::imshow("Depth", depth);
 				cv::imshow("Color", color);
 
-				if (kl.getCoordinateMapping(kl.COLOR_TO_DEPTH, (void**)&dsp)) {
-					if (!depth.empty()) {
-						
-						for (int i = 0; i < mapped.rows; i++) {
-							for (int j = 0; j < mapped.cols; j++) {
-
-								int curIndex = i * mapped.cols + j;
-								DepthSpacePoint curCsp = dsp[curIndex];
-								cv::Point pt = cv::Point((int)curCsp.X, (int)curCsp.Y);
-
-								if (mappedRect.contains(pt)) {
-									mapped.at<unsigned short>(i, j) = depth.at<unsigned short>(pt);
-								}
-							}
-						}
-
-						cv::imshow("mapped", mapped);
-					}
+				if (kl.getCoordinateMapping(kl.DEPTH_TO_COLOR, mapped)) {
+					cv::imshow("Mapped", mapped);
 				}
 			}
 
 			cv::waitKey(1);
 		}
+		double time = ((double)cv::getTickCount() - ticks) / cv::getTickFrequency();
+		std::cout << "Time taken: " << time << "\n";
 	}
 
 	kl.~KinectLibrary();
