@@ -135,11 +135,11 @@ private:
 
 	UINT8* bodyIndexBuffer;
 
-	CameraSpacePoint* cameraPts;
+	CameraSpacePoint* cameraPts = NULL;
 
-	DepthSpacePoint* depthPts;
+	DepthSpacePoint* depthPts = NULL;
 	
-	ColorSpacePoint* colorPts;
+	ColorSpacePoint* colorPts = NULL;
 
 	cv::Mat colorImg;
 
@@ -160,5 +160,7 @@ private:
 	void initBodyIndex();
 
 	void initMSFSizes();
+
+	void mapImage(cv::Mat& input, cv::Mat& output, cv::Size outputSize, void* points);
 };
 
