@@ -29,6 +29,8 @@ public:
 	 */
 	KinectLibrary(uint8_t sensors);
 
+	bool update();
+
 	bool getColorImage(cv::Mat& output);
 
 	bool getDepthImage(cv::Mat& output);
