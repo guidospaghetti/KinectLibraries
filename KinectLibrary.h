@@ -3,15 +3,25 @@
 #include <opencv2\imgproc\imgproc.hpp>
 
 
-#define	COLOR_SENSOR		(0x01)
-#define DEPTH_SENSOR		(0x01 << 1)
-#define INFRARED_SENSOR		(0x01 << 2)
-#define BODY_SENSOR			(0x01 << 3)
-#define BODY_INDEX_SENSOR	(0x01 << 4)
+#define	COLOR_SENSOR		0x01
+#define DEPTH_SENSOR		0x02
+#define INFRARED_SENSOR		0x04
+#define BODY_SENSOR			0x08
+#define BODY_INDEX_SENSOR	0x10
 
 class KinectLibrary {
 
 public:
+
+	typedef enum CoordinateMapping_t {
+		CAMERA_TO_COLOR,
+		CAMERA_TO_DEPTH,
+		COLOR_TO_DEPTH,
+		COLOR_TO_CAMERA,
+		DEPTH_TO_CAMERA,
+		DEPTH_TO_COLOR
+	} CoordinateMapping_t;
+
 	/**
 	 * @brief KinectLibrary constructor. Performs the backend startup for 
 	 * the Kinect API. The sensors available are color, depth, infrared, and
@@ -29,11 +39,21 @@ public:
 
 	bool getBodyIndex(cv::Mat& output);
 
+	bool getCoordinateMapping(CoordinateMapping_t mapping, void** points);
+
+	bool getCoordinateMapping(CoordinateMapping_t mapping, cv::Mat& output);
+
+	bool fillDepthHoles(cv::Mat& input, cv::Mat& output);
+
 	~KinectLibrary();
+
+
 
 private:
 
 	uint8_t _sensors;
+
+	bool multisource = false;
 
 	IKinectSensor* sensor = NULL;
 
@@ -83,6 +103,8 @@ private:
 
 	IFrameDescription* frameDesc = NULL;
 
+	ICoordinateMapper* mapper = NULL;
+
 	int colorHeight;
 
 	int colorWidth;
@@ -110,6 +132,20 @@ private:
 	UINT16* infraredBuffer;
 
 	UINT8* bodyIndexBuffer;
+
+	CameraSpacePoint* cameraPts;
+
+	DepthSpacePoint* depthPts;
+	
+	ColorSpacePoint* colorPts;
+
+	cv::Mat colorImg;
+
+	cv::Mat depthImg;
+
+	cv::Mat infraredImg;
+
+	cv::Mat bodyIndexImg;
 
 	void initColor();
 

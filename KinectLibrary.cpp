@@ -98,6 +98,9 @@ KinectLibrary::KinectLibrary(uint8_t sensors) {
 
 	}
 
+	sensor->get_CoordinateMapper(&mapper);
+
+}
 }
 
 bool KinectLibrary::getColorImage(cv::Mat& output) {
@@ -468,6 +471,119 @@ bool KinectLibrary::getBodyIndex(cv::Mat& output) {
 
 	return false;
 
+}
+
+bool KinectLibrary::getCoordinateMapping(CoordinateMapping_t mapping, void** points) {
+	HRESULT result;
+
+	switch (mapping) {
+	case CAMERA_TO_COLOR:
+		return false;
+		break;
+	case CAMERA_TO_DEPTH:
+		return false;
+		break;
+	case COLOR_TO_CAMERA:
+		delete[] cameraPts;
+		cameraPts = new CameraSpacePoint[colorHeight * colorWidth];
+		result = mapper->MapColorFrameToCameraSpace(depthHeight * depthWidth, depthBuffer, colorHeight * colorWidth, cameraPts);
+		
+		if (FAILED(result)) {
+			return false;
+		}
+
+		*points = cameraPts;
+		return true;
+		break;
+	case COLOR_TO_DEPTH:
+		delete[] depthPts;
+		depthPts = new DepthSpacePoint[colorHeight * colorWidth];
+		result = mapper->MapColorFrameToDepthSpace(depthHeight * depthWidth, depthBuffer, colorHeight * colorWidth, depthPts);
+
+		if (FAILED(result)) {
+			return false;
+		}
+
+		*points = depthPts;
+		return true;
+		break;
+	case DEPTH_TO_CAMERA:
+		delete[] cameraPts;
+		cameraPts = new CameraSpacePoint[colorHeight * colorWidth];
+		result = mapper->MapDepthFrameToCameraSpace(depthHeight * depthWidth, depthBuffer, colorHeight * colorWidth, cameraPts);
+		
+		if (FAILED(result)) {
+			return false;
+		}
+
+		*points = cameraPts;
+		return true;
+		break;
+	case DEPTH_TO_COLOR:
+		delete[] colorPts;
+		colorPts = new ColorSpacePoint[depthHeight * depthWidth];
+		result = mapper->MapDepthFrameToColorSpace(depthHeight * depthWidth, depthBuffer, depthHeight * depthWidth, colorPts);
+		
+		if (FAILED(result)) {
+			return false;
+		}
+
+		*points = colorPts;
+		return true;
+		break;
+	default:
+		return false;
+	}
+}
+
+bool KinectLibrary::getCoordinateMapping(CoordinateMapping_t mapping, cv::Mat& output) {
+	HRESULT result;
+	CameraSpacePoint* cameraPts_;
+	ColorSpacePoint* colorPts_;
+	DepthSpacePoint* depthPts_;
+
+	switch (mapping) {
+	case CAMERA_TO_COLOR:
+		return false;
+	case CAMERA_TO_DEPTH:
+		return false;
+	case COLOR_TO_CAMERA:
+		if (getCoordinateMapping(mapping, (void**)&cameraPts_)) {
+			if (!colorImg.empty()) {
+
+			}
+		}
+		break;
+	case COLOR_TO_DEPTH:
+		if (getCoordinateMapping(mapping, (void**)&depthPts_)) {
+			if (!colorImg.empty()) {
+
+			}
+		}
+		break;
+	case DEPTH_TO_CAMERA:
+		if (getCoordinateMapping(mapping, (void**)&cameraPts_)) {
+			if (!depthImg.empty()) {
+
+			}
+		}
+		break;
+	case DEPTH_TO_COLOR:
+		if (getCoordinateMapping(mapping, (void**)&colorPts_)) {
+			if (!depthImg.empty()) {
+
+			}
+		}
+		break;
+	default:
+		break;
+	}
+
+	return false;
+}
+
+bool KinectLibrary::fillDepthHoles(cv::Mat& input, cv::Mat& output) {
+	return false;
 }
 
 void KinectLibrary::initColor() {
